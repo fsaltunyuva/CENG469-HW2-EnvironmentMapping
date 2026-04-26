@@ -246,11 +246,11 @@ void generateTerrain(GLState &state, const GeoDataDTED &dted, ThreadPool &tp) {
 
 int main(int argc, const char* argv[])
 {
-    if (argc < 2) {
-        std::cerr << "No DTED file found in arguments." << std::endl;
-        return -1;
-    }
-    
+    // if (argc < 2) {
+    //     std::cerr << "No DTED file found in arguments." << std::endl;
+    //     return -1;
+    // }
+
     GLState state = GLState("Terrain Renderer", 1280, 720,
                             CallbackPointersGLFW());
     ShaderGL vShader = ShaderGL(ShaderGL::VERTEX, "shaders/generic.vert");
@@ -263,7 +263,7 @@ int main(int argc, const char* argv[])
     glEnable(GL_DEPTH_TEST);
     glFrontFace(GL_CCW);
 
-    GeoDataDTED dted(argv[1]);
+    GeoDataDTED dted("geo/n36_e029_1arc_v3.dt2");
 
     ThreadPool tp({ .threadCount = std::thread::hardware_concurrency() });
     generateTerrain(state, dted, tp);
@@ -308,6 +308,35 @@ int main(int argc, const char* argv[])
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
     glEnableVertexAttribArray(1);
 
+    // HDR
+    GLuint hdrFBO, colorBuffer, rboDepth;
+    // To update later on
+    int fbWidth = state.curWndParams.fbSize[0];
+    int fbHeight = state.curWndParams.fbSize[1];
+    int currentFBWidth = fbWidth;
+    int currentFBHeight = fbHeight;
+
+    glGenFramebuffers(1, &hdrFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+
+    glGenTextures(1, &colorBuffer);
+    glBindTexture(GL_TEXTURE_2D, colorBuffer);
+
+    // 32 bit color buffer
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, fbWidth, fbHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // Mipmap
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
+
+    // Depth
+    glGenRenderbuffers(1, &rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fbWidth, fbHeight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     // =============== //
     //   RENDER LOOP   //
     // =============== //
@@ -328,6 +357,25 @@ int main(int argc, const char* argv[])
             state.needsTerrainUpdate = false;
             // for debugging, because sometimes I cant notice the change
             std::cout << "Terrain updated with rate: " << state.tesselationRate << std::endl;
+        }
+
+        // Framebuffer resize (from enter fullscreen)
+        int newWidth = state.curWndParams.fbSize[0];
+        int newHeight = state.curWndParams.fbSize[1];
+        if (newWidth != currentFBWidth || newHeight != currentFBHeight) {
+            currentFBWidth = newWidth;
+            currentFBHeight = newHeight;
+
+            fbWidth = newWidth;
+            fbHeight = newHeight;
+
+            // Resize color buffer
+            glBindTexture(GL_TEXTURE_2D, colorBuffer);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, newWidth, newHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+
+            // Resize depth buffer
+            glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, newWidth, newHeight);
         }
 
         // camera movement
@@ -360,6 +408,11 @@ int main(int argc, const char* argv[])
                                             5.0f, 50000.0f); // some changes for better view
 
         glm::mat4x4 view = glm::lookAt(state.cam.pos, state.cam.pos + forward, up);
+
+        // HDR rendering to framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+        glViewport(0, 0, state.curWndParams.fbSize[0], state.curWndParams.fbSize[1]);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the framebuffer for new frame
 
         // Start rendering
         glViewport(0, 0,
@@ -419,6 +472,21 @@ int main(int argc, const char* argv[])
         // Draw call!
         // glDrawElements(GL_TRIANGLES, GLsizei(mesh.indexCount), GL_UNSIGNED_INT, nullptr);
         glDrawElements(GL_TRIANGLES, (GLsizei)state.indices.size(), GL_UNSIGNED_INT, nullptr);
+
+        // Mipmap generation for the color buffer
+        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // Tonemapping (TEMP)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // TEMP
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, hdrFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(0, 0, fbWidth, fbHeight, 0, 0, fbWidth, fbHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        // #TEMP
+
         glfwSwapBuffers(state.window);
     }
 }

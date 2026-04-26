@@ -65,7 +65,15 @@ void main(void)
 		{
 			vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5));
 			float diff = max(dot(normal, lightDir), 0.2); // 0.2 ambient
-			fboColor = vec4(albedo * diff, 1.0);
+
+			vec3 color = albedo * diff;
+
+			float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722)); // sRGB
+			float logLuminance = log(max(luminance, 0.0001));
+
+//			color *= 20; // to test hdr
+
+			fboColor = vec4(color, logLuminance); // passing logLuminance to alpha value
 			break;
 		}
 		// Albedo
