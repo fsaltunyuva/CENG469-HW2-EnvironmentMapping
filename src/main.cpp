@@ -261,6 +261,10 @@ int main(int argc, const char* argv[])
     // Skybox shaders
     ShaderGL skyboxVShader = ShaderGL(ShaderGL::VERTEX, "shaders/skybox.vert");
     ShaderGL skyboxFShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/skybox.frag");
+    // Water shaders
+    ShaderGL waterVShader = ShaderGL(ShaderGL::VERTEX, "shaders/water.vert");
+    ShaderGL waterFShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/water.frag");
+
     TextureGL skyboxTex = TextureGL("kloppenheim_06_puresky_4k.hdr", TextureGL::LINEAR, TextureGL::REPEAT);
     
     MeshGL mesh = MeshGL("meshes/tri.obj");
@@ -274,6 +278,14 @@ int main(int argc, const char* argv[])
     // Binding the tonemap vertex and tonemap fragment shaders to the pipeline
     glUseProgramStages(tonemapPipeline, GL_VERTEX_SHADER_BIT, tmvShader.shaderId);
     glUseProgramStages(tonemapPipeline, GL_FRAGMENT_SHADER_BIT, tmfShader.shaderId);
+
+    // Water shaders and pipeline
+    GLuint waterPipeline;
+    glGenProgramPipelines(1, &waterPipeline);
+
+    // Binding the water vertex and water fragment shaders to the pipeline
+    glUseProgramStages(waterPipeline, GL_VERTEX_SHADER_BIT, waterVShader.shaderId);
+    glUseProgramStages(waterPipeline, GL_FRAGMENT_SHADER_BIT, waterFShader.shaderId);
 
     // Set unchanged state(s)
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -297,6 +309,8 @@ int main(int argc, const char* argv[])
     glm::vec3 center = 0.5f * (bbMin + bbMax);
 
     state.cam.pos = glm::vec3(center.x, bbMax.y + 1000.0f, center.z); // some offset to see the terrain from above
+
+    float waterLevel = bbMin.y + 50.0f; // set water level a bit above the minimum height of the terrain
 
     GLuint terrainVAO, terrainVBO, terrainEBO;
 
@@ -343,6 +357,8 @@ int main(int argc, const char* argv[])
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, fbWidth, fbHeight, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // Mipmap
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glGenerateMipmap(GL_TEXTURE_2D);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
 
     // Depth
@@ -374,6 +390,54 @@ int main(int argc, const char* argv[])
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*) 0); // location 0
     glEnableVertexAttribArray(2); // vUV
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*) (2 * sizeof(float))); // location 2
+
+    // Water
+    int waterRes = 250;
+    std::vector<glm::vec3> waterVertices;
+    std::vector<uint32_t> waterIndices;
+
+    float terrainSizeX = (bbMax.x - bbMin.x) * 1.5f; // bit bigger to guarantee
+    float terrainSizeZ = (bbMax.z - bbMin.z) * 1.5f;
+
+    // similar logic to terrain vertices with animation handled in the vertex shader
+    for (int i = 0; i <= waterRes; ++i) {
+        for (int j = 0; j <= waterRes; ++j) {
+            // mapping water vertices to the terrain bounding box, with a bit of offset to make sure it covers the whole terrain even if the camera goes outside
+            float x = bbMin.x + (float) i / waterRes * terrainSizeX - terrainSizeX * 0.1f;
+            float z = bbMin.z + (float) j / waterRes * terrainSizeZ - terrainSizeZ * 0.1f;
+
+            waterVertices.push_back(glm::vec3(x, 0.0f, z)); // y will be set in the vertex shader based on the water level
+        }
+    }
+
+    for (int i = 0; i < waterRes; ++i) {
+        for (int j = 0; j < waterRes; ++j) {
+            // same logic as terrain indices but with waterRes instead of state.tesselationRate and without the vBase offset since water vertices are in a single array
+            int row1 = i * (waterRes + 1);
+            int row2 = (i + 1) * (waterRes + 1);
+            waterIndices.push_back(row1 + j);
+            waterIndices.push_back(row2 + j);
+            waterIndices.push_back(row1 + j + 1);
+
+            waterIndices.push_back(row1 + j + 1);
+            waterIndices.push_back(row2 + j);
+            waterIndices.push_back(row2 + j + 1);
+        }
+    }
+
+    GLuint waterVAO, waterVBO, waterEBO;
+    glGenVertexArrays(1, &waterVAO);
+    glGenBuffers(1, &waterVBO);
+    glGenBuffers(1, &waterEBO);
+
+    glBindVertexArray(waterVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, waterVBO);
+    glBufferData(GL_ARRAY_BUFFER, waterVertices.size() * sizeof(glm::vec3), waterVertices.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, waterEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, waterIndices.size() * sizeof(uint32_t), waterIndices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
 
     // =============== //
     //   RENDER LOOP   //
@@ -410,6 +474,7 @@ int main(int argc, const char* argv[])
             // Resize color buffer
             glBindTexture(GL_TEXTURE_2D, colorBuffer);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, newWidth, newHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+            glGenerateMipmap(GL_TEXTURE_2D);
 
             // Resize depth buffer
             glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
@@ -446,6 +511,8 @@ int main(int argc, const char* argv[])
                                             5.0f, 50000.0f); // some changes for better view
 
         glm::mat4x4 view = glm::lookAt(state.cam.pos, state.cam.pos + forward, up);
+
+        glm::mat4x4 model = glm::identity<glm::mat4x4>();
 
         // HDR rendering to framebuffer
         glBindProgramPipeline(state.renderPipeline); // switch to main rendering pipeline
@@ -536,6 +603,35 @@ int main(int argc, const char* argv[])
 
         glBindVertexArray(tmquadVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+        glBindProgramPipeline(waterPipeline); // switch to water pipeline
+
+        // sending matrices and time for animation to the water vertex shader
+        GLint wModelLoc = glGetUniformLocation(waterVShader.shaderId, "uModel");
+        GLint wViewLoc  = glGetUniformLocation(waterVShader.shaderId, "uView");
+        GLint wProjLoc  = glGetUniformLocation(waterVShader.shaderId, "uProj");
+        GLint wTimeLoc  = glGetUniformLocation(waterVShader.shaderId, "uTime");
+
+        glProgramUniformMatrix4fv(waterVShader.shaderId, wModelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glProgramUniformMatrix4fv(waterVShader.shaderId, wViewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glProgramUniformMatrix4fv(waterVShader.shaderId, wProjLoc, 1, GL_FALSE, glm::value_ptr(proj));
+        glProgramUniform1f(waterVShader.shaderId, wTimeLoc, (float) glfwGetTime()); // time for animation
+
+        GLint wWaterLevelLoc = glGetUniformLocation(waterVShader.shaderId, "uWaterLevel");
+        glProgramUniform1f(waterVShader.shaderId, wWaterLevelLoc, waterLevel);
+
+        // uniforms
+        GLint wViewPosLoc = glGetUniformLocation(waterFShader.shaderId, "uViewPos");
+        GLint wSkyTexLoc  = glGetUniformLocation(waterFShader.shaderId, "tSkybox");
+
+        glProgramUniform3fv(waterFShader.shaderId, wViewPosLoc, 1, glm::value_ptr(state.cam.pos));
+        glProgramUniform1i(waterFShader.shaderId, wSkyTexLoc, 0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, skyboxTex.textureId);
+
+        glBindVertexArray(waterVAO);
+        glDrawElements(GL_TRIANGLES, (GLsizei) waterIndices.size(), GL_UNSIGNED_INT, nullptr);
         
         glDepthFunc(GL_LESS);
 

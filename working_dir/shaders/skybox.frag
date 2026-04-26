@@ -14,7 +14,7 @@ vec2 SampleSphericalMap(vec3 v)
     float theta = acos(v.y);
 
     float u = (phi + PI) / (2.0 * PI);
-    float v_coord = theta / PI;
+    float v_coord = 1.0 - (theta / PI);
 
     return vec2(u, v_coord);
 }
