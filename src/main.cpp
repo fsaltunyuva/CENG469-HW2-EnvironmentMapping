@@ -255,9 +255,21 @@ int main(int argc, const char* argv[])
                             CallbackPointersGLFW());
     ShaderGL vShader = ShaderGL(ShaderGL::VERTEX, "shaders/generic.vert");
     ShaderGL fShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/debug.frag");
+    // Tonemap shaders
+    ShaderGL tmvShader = ShaderGL(ShaderGL::VERTEX, "shaders/tonemap.vert");
+    ShaderGL tmfShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/tonemap.frag");
     MeshGL mesh = MeshGL("meshes/tri.obj");
     TextureGL tex = TextureGL("textures/mixed_brick_wall_diff_1k.png",
                               TextureGL::LINEAR, TextureGL::REPEAT);
+
+    // Tonemap shader program (seperate from the main rendering pipeline)
+    GLuint tonemapPipeline;
+    glGenProgramPipelines(1, &tonemapPipeline);
+
+    // Binding the tonemap vertex and tonemap fragment shaders to the pipeline
+    glUseProgramStages(tonemapPipeline, GL_VERTEX_SHADER_BIT, tmvShader.shaderId);
+    glUseProgramStages(tonemapPipeline, GL_FRAGMENT_SHADER_BIT, tmfShader.shaderId);
+
     // Set unchanged state(s)
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glEnable(GL_DEPTH_TEST);
@@ -337,6 +349,27 @@ int main(int argc, const char* argv[])
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    // Tonemapping quad
+    float quadVertices[] = { // x, y, u, v
+        -1.0f, 1.0f, 0.0f, 1.0f,
+        -1.0f, -1.0f, 0.0f, 0.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f, 0.0f,
+    };
+
+    GLuint tmquadVAO, tmquadVBO;
+    glGenVertexArrays(1, &tmquadVAO);
+    glGenBuffers(1, &tmquadVBO);
+    glBindVertexArray(tmquadVAO);
+
+    // Load quad vertices
+    glBindBuffer(GL_ARRAY_BUFFER, tmquadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0); // vPos
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*) 0); // location 0
+    glEnableVertexAttribArray(2); // vUV
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*) (2 * sizeof(float))); // location 2
+
     // =============== //
     //   RENDER LOOP   //
     // =============== //
@@ -410,6 +443,7 @@ int main(int argc, const char* argv[])
         glm::mat4x4 view = glm::lookAt(state.cam.pos, state.cam.pos + forward, up);
 
         // HDR rendering to framebuffer
+        glBindProgramPipeline(state.renderPipeline); // switch to main rendering pipeline
         glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
         glViewport(0, 0, state.curWndParams.fbSize[0], state.curWndParams.fbSize[1]);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the framebuffer for new frame
@@ -477,15 +511,23 @@ int main(int argc, const char* argv[])
         glBindTexture(GL_TEXTURE_2D, colorBuffer);
         glGenerateMipmap(GL_TEXTURE_2D);
 
-        // Tonemapping (TEMP)
+        // Tonemapping
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // TEMP
         glBindFramebuffer(GL_READ_FRAMEBUFFER, hdrFBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBlitFramebuffer(0, 0, fbWidth, fbHeight, 0, 0, fbWidth, fbHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        // #TEMP
+
+        glBindProgramPipeline(tonemapPipeline); // switch to tonemap pipeline
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+
+        glActiveShaderProgram(tonemapPipeline, tmfShader.shaderId);
+        glUniform1i(glGetUniformLocation(tmfShader.shaderId, "hdrsampler"), 0);
+
+        glBindVertexArray(tmquadVAO);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glfwSwapBuffers(state.window);
     }
