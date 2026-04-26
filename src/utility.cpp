@@ -481,6 +481,8 @@ MeshGL::MeshGL(const std::string& objPath)
     // to make the vao to store indices so that we can call draw elements call
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBufferId);
 
+    glBindVertexArray(0);
+
     std::printf("Obj file \"%s\" is loaded succesfully.\n",
                 objPath.c_str());
 
