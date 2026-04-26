@@ -499,10 +499,15 @@ TextureGL::TextureGL(const std::string& texPath,
         std::exit(EXIT_FAILURE);
     }
     //
-    bool is16Bit = stbi_is_16_bit_from_file(f);
+    bool isHDR = stbi_is_hdr(texPath.c_str());
+    bool is16Bit = !isHDR && stbi_is_16_bit_from_file(f);
     void* rawPixels = nullptr;
-    if(is16Bit) rawPixels = stbi_load_from_file_16(f, &width, &height, &channelCount, 0);
+    
+    if(isHDR)   rawPixels = stbi_loadf_from_file(f, &width, &height, &channelCount, 0);
+    else if(is16Bit) rawPixels = stbi_load_from_file_16(f, &width, &height, &channelCount, 0);
     else        rawPixels = stbi_load_from_file(f, &width, &height, &channelCount, 0);
+    
+    fclose(f); 
     //
     if(!rawPixels)
     {
@@ -516,19 +521,22 @@ TextureGL::TextureGL(const std::string& texPath,
     //
     GLenum internalFormatSized = 0;
     GLenum internalFormat = 0;
-    GLenum pixType = (is16Bit) ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE;
+    GLenum pixType = GL_UNSIGNED_BYTE;
+    if (isHDR) pixType = GL_FLOAT;
+    else if (is16Bit) pixType = GL_UNSIGNED_SHORT;
+
     switch(channelCount)
     {
-        case 1: internalFormatSized = (is16Bit) ? GL_R16    : GL_R8;
+        case 1: internalFormatSized = isHDR ? GL_R32F : (is16Bit ? GL_R16    : GL_R8);
                 internalFormat      = GL_RED;
                 break;
-        case 2: internalFormatSized = (is16Bit) ? GL_RG16   : GL_RG8;
+        case 2: internalFormatSized = isHDR ? GL_RG32F : (is16Bit ? GL_RG16   : GL_RG8);
                 internalFormat      = GL_RG;
                 break;
-        case 3: internalFormatSized = (is16Bit) ? GL_RGB16  : GL_RGB8;
+        case 3: internalFormatSized = isHDR ? GL_RGB32F : (is16Bit ? GL_RGB16  : GL_RGB8);
                 internalFormat      = GL_RGB;
                 break;
-        case 4: internalFormatSized = (is16Bit) ? GL_RGBA16 : GL_RGBA8;
+        case 4: internalFormatSized = isHDR ? GL_RGBA32F : (is16Bit ? GL_RGBA16 : GL_RGBA8);
                 internalFormat      = GL_RGBA;
                 break;
         default:

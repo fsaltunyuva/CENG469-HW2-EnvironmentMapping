@@ -258,6 +258,11 @@ int main(int argc, const char* argv[])
     // Tonemap shaders
     ShaderGL tmvShader = ShaderGL(ShaderGL::VERTEX, "shaders/tonemap.vert");
     ShaderGL tmfShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/tonemap.frag");
+    // Skybox shaders
+    ShaderGL skyboxVShader = ShaderGL(ShaderGL::VERTEX, "shaders/skybox.vert");
+    ShaderGL skyboxFShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/skybox.frag");
+    TextureGL skyboxTex = TextureGL("kloppenheim_06_puresky_4k.hdr", TextureGL::LINEAR, TextureGL::REPEAT);
+    
     MeshGL mesh = MeshGL("meshes/tri.obj");
     TextureGL tex = TextureGL("textures/mixed_brick_wall_diff_1k.png",
                               TextureGL::LINEAR, TextureGL::REPEAT);
@@ -506,6 +511,33 @@ int main(int argc, const char* argv[])
         // Draw call!
         // glDrawElements(GL_TRIANGLES, GLsizei(mesh.indexCount), GL_UNSIGNED_INT, nullptr);
         glDrawElements(GL_TRIANGLES, (GLsizei)state.indices.size(), GL_UNSIGNED_INT, nullptr);
+
+        // Skybox
+        glDepthFunc(GL_LEQUAL); //
+
+        // switch to skybox vertex shader
+        glUseProgramStages(state.renderPipeline, GL_VERTEX_SHADER_BIT, skyboxVShader.shaderId);
+        glActiveShaderProgram(state.renderPipeline, skyboxVShader.shaderId);
+
+        // Send inverse of projection and view matrices to the shader to reconstruct the world position from the depth buffer
+        glm::mat4 invProj = glm::inverse(proj);
+        glm::mat4 invView = glm::inverse(glm::mat4(glm::mat3(view)));
+        
+        glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(invProj));
+        glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(invView));
+
+        // switch to skybox fragment shader
+        glUseProgramStages(state.renderPipeline, GL_FRAGMENT_SHADER_BIT, skyboxFShader.shaderId);
+        glActiveShaderProgram(state.renderPipeline, skyboxFShader.shaderId);
+
+        // Bind skybox texture
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, skyboxTex.textureId);
+
+        glBindVertexArray(tmquadVAO);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        
+        glDepthFunc(GL_LESS);
 
         // Mipmap generation for the color buffer
         glBindTexture(GL_TEXTURE_2D, colorBuffer);
