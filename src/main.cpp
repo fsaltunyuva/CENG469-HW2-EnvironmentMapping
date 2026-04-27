@@ -561,6 +561,9 @@ int main(int argc, const char* argv[])
     float waterFrequency = 0.003f;
     float waterPhase = 0.6f;
 
+    float hdrMiddleGray = 0.18f;
+    float hdrLWhite = 1.0f;
+
     // =============== //
     //   RENDER LOOP   //
     // =============== //
@@ -852,15 +855,24 @@ int main(int argc, const char* argv[])
 
         glActiveShaderProgram(tonemapPipeline, tmfShader.shaderId);
         glUniform1i(glGetUniformLocation(tmfShader.shaderId, "hdrsampler"), 0);
+        glUniform1f(glGetUniformLocation(tmfShader.shaderId, "uMiddleGray"), hdrMiddleGray);
+        glUniform1f(glGetUniformLocation(tmfShader.shaderId, "uLWhite"), hdrLWhite);
 
         glBindVertexArray(tmquadVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         // Render ImGui
-        ImGui::Begin("Water Parameters");
-        ImGui::SliderFloat("Amplitude", &waterAmplitude, 0.0f, 10.0f);
-        ImGui::SliderFloat("Frequency", &waterFrequency, 0.0f, 0.02f, "%.4f");
-        ImGui::SliderFloat("Phase", &waterPhase, 0.0f, 5.0f);
+        ImGui::SetNextWindowSize(ImVec2(600, 0), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Parameters");
+        if (ImGui::CollapsingHeader("Water Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat("Amplitude", &waterAmplitude, 0.0f, 10.0f);
+            ImGui::SliderFloat("Frequency", &waterFrequency, 0.0f, 0.02f, "%.4f");
+            ImGui::SliderFloat("Phase", &waterPhase, 0.0f, 5.0f);
+        }
+        if (ImGui::CollapsingHeader("HDR Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat("Middle Gray", &hdrMiddleGray, 0.0f, 1.0f);
+            ImGui::SliderFloat("LWhite", &hdrLWhite, 0.01f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+        }
         ImGui::End();
 
         ImGui::Render();
