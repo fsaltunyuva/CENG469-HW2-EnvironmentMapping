@@ -7,6 +7,7 @@ layout(location = 2) in vec3 fWorldPos;
 layout(location = 0) out vec4 fboColor;
 
 uniform sampler2D tAlbedo;
+layout(binding = 1) uniform sampler2D tSkybox;
 uniform vec3 uViewPos;
 uniform bool uIsGlass;
 
@@ -24,19 +25,26 @@ vec2 SampleSphericalMap(vec3 v) {
 void main(void)
 {
     vec3 normal = normalize(fNormal);
+    vec3 V = normalize(uViewPos - fWorldPos);
+    vec3 R = reflect(-V, normal);
+    vec3 reflectColor = texture(tSkybox, SampleSphericalMap(R)).rgb;
+
+    // I used mix() to blend the base color and the reflection to match with the shared demo video
 
     if (uIsGlass) {
-        vec3 V = normalize(uViewPos - fWorldPos);
-        vec3 R = reflect(-V, normal);
-        vec3 reflectColor = texture(tAlbedo, SampleSphericalMap(R)).rgb;
-        fboColor = vec4(reflectColor, log(max(dot(reflectColor, vec3(0.2126, 0.7152, 0.0722)), 0.0001)));
+        vec3 color = mix(vec3(0.05), reflectColor, 0.9); // 0.9 reflection and 0.1 base color
+
+        float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722)); // sRGB
+        float logLuminance = log(max(luminance, 0.0001));
+
+        fboColor = vec4(color, logLuminance);
     }
-    else{
+    else {
         vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5));
         float diff = max(dot(normal, lightDir), 0.2);
 
         vec3 texCol = texture(tAlbedo, fUV).rgb;
-        vec3 color = texCol * diff;
+        vec3 color = mix(texCol * diff, reflectColor, 0.15); // 0.15 reflection and 0.85 base color
 
         float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722)); // sRGB
         float logLuminance = log(max(luminance, 0.0001));

@@ -528,6 +528,9 @@ int main(int argc, const char* argv[])
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
     glEnableVertexAttribArray(0);
 
+    glProgramUniform1i(planeFShader.shaderId, glGetUniformLocation(planeFShader.shaderId, "tAlbedo"), 0);
+    glProgramUniform1i(planeFShader.shaderId, glGetUniformLocation(planeFShader.shaderId, "tSkybox"), 1);
+
     // =============== //
     //   RENDER LOOP   //
     // =============== //
@@ -737,6 +740,9 @@ int main(int argc, const char* argv[])
         glDepthFunc(GL_LESS);
 
         glBindProgramPipeline(state.renderPipeline);
+
+        glActiveTexture(GL_TEXTURE1); // for the plane shader to sample the skybox for reflections
+        glBindTexture(GL_TEXTURE_2D, skyboxTex.textureId);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, planeBaseTex.textureId);
