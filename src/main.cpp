@@ -729,16 +729,29 @@ int main(int argc, const char* argv[])
             glUniform1ui(U_MODE, state.mode);
         }
 
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, grassTex.textureId);
-        glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, rockTex.textureId);
-        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, snowTex.textureId);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, grassTex.textureId);
 
-        glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, grassRoughTex.textureId);
-        glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, rockRoughTex.textureId);
-        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, snowRoughTex.textureId);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, rockTex.textureId);
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, snowTex.textureId);
+
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, grassRoughTex.textureId);
+
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, rockRoughTex.textureId);
+
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, snowRoughTex.textureId);
 
         //needed for specular
         glProgramUniform3fv(fShader.shaderId, glGetUniformLocation(fShader.shaderId, "uViewPos"), 1, glm::value_ptr(state.cam.pos));
+
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_2D, skyboxTex.textureId);
 
         // Bind VAO
         glBindVertexArray(terrainVAO);

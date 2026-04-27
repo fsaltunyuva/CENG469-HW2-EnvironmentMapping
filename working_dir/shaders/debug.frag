@@ -45,6 +45,18 @@ layout(binding = 2) uniform sampler2D tSnow;
 layout(binding = 3) uniform sampler2D tGrassRough;
 layout(binding = 4) uniform sampler2D tRockRough;
 layout(binding = 5) uniform sampler2D tSnowRough;
+layout(binding = 6) uniform sampler2D tSkybox;
+
+// same as in water shader for consistent spherical mapping
+const float PI = 3.1415926;
+
+vec2 SampleSphericalMap(vec3 v) {
+	float phi = atan(v.z, v.x);
+	float theta = acos(clamp(v.y, -1.0, 1.0));
+	float u = (phi + PI) / (2.0 * PI); // converting from [-PI, PI] to [0, 1]
+	float v_coord = 1.0 - (theta / PI); // converting from [0, PI] to [1, 0]
+	return vec2(u, v_coord);
+}
 
 vec3 getAlbedo(float h) {
 	if (h < 100.0)
@@ -88,14 +100,18 @@ void main(void)
 			roughMix = mix(roughMix, texture(tSnowRough, uv).r, snowW);
 
 			vec3 L = normalize(vec3(0.5, 1.0, 0.5));
+
+			vec3 lightColor = texture(tSkybox, SampleSphericalMap(L)).rgb; // using skybox color as light color
 			vec3 V = normalize(uViewPos - fWorldPos);
 			vec3 H = normalize(L + V);
 
-			float diff = max(dot(N, L), 0.2); // ambient 0.2
+			float diff = max(dot(N, L), 0.0);
 
 			float spec = pow(max(dot(N, H), 0.0), (1.0 - roughMix) * 128.0); // dynamic specuar exponent based on roughness
 
-			vec3 finalColor = (colorMix * diff) + (spec * 0.3); // specular contribution is scaled down a bit
+			vec3 ambient = textureLod(tSkybox, SampleSphericalMap(N), 8.0).rgb * 0.1; // ambient from skybox with some scaling
+
+			vec3 finalColor = (colorMix * (lightColor * diff + ambient)) + (spec * lightColor * 0.3); // specular contribution is scaled down a bit
 
 			float luminance = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
 			float logL = log(max(luminance, 0.0001));
@@ -103,13 +119,13 @@ void main(void)
 			fboColor = vec4(finalColor, logL);
 			break;
 		}
-		// Albedo
+		// Albedo (from HW1)
 		case 1:
 		{
 			fboColor = vec4(albedo, 1.0);
 			break;
 		}
-		// Surface Normals
+		// Surface Normals (from HW1)
 		case 2:{
 			// [-1, 1] to [0, 1]
 			fboColor = vec4(normal * 0.5 + 0.5, 1.0);
