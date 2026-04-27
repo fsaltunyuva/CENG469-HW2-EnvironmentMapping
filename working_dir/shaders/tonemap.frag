@@ -12,7 +12,7 @@ void main() {
     vec4 texSample = texture(hdrsampler, fUV);
     vec3 hdrColor = texSample.rgb;
 
-    float avgLogLum = textureLod(hdrsampler, vec2(0.5, 0.5), 12.0).a; // to sample the average log luminance from the mipmap level
+    float avgLogLum = textureLod(hdrsampler, vec2(0.5, 0.5), 20.0).a; // to sample the average log luminance from the mipmap level
     float avgLum = exp(avgLogLum);
 
     float exposure = uMiddleGray / (avgLum + 0.001);
