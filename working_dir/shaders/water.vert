@@ -2,13 +2,15 @@
 
 layout(location = 0) in vec3 vPos;
 
-out gl_PerVertex { vec4 gl_Position; };
+out gl_PerVertex {vec4 gl_Position;};
 layout(location = 1) out vec3 fNormal;
 layout(location = 2) out vec3 fWorldPos;
 
-uniform mat4 uModel, uView, uProj;
-uniform float uTime;
-uniform float uWaterLevel;
+layout(location = 0) uniform mat4 uModel;
+layout(location = 1) uniform mat4 uView;
+layout(location = 2) uniform mat4 uProj;
+layout(location = 4) uniform float uTime;
+layout(location = 5) uniform float uWaterLevel;
 
 void main() {
     float A = 1.5; // amplitude

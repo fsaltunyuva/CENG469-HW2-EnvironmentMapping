@@ -8,6 +8,8 @@
 #include <glm/ext.hpp>
 #include <GLFW/glfw3.h>
 
+struct MeshGL;
+
 void WindowPositionCallback(GLFWwindow* wnd, int x, int y);
 void WindowSizeCallback(GLFWwindow* wnd, int x, int y);
 void MouseMoveCallback(GLFWwindow*, double x, double y);
@@ -79,6 +81,31 @@ struct GLState
     bool needsTerrainUpdate = false;
     bool isFullscreen = false;
     float heightScale = 1.0f;
+
+    struct Plane {
+        MeshGL* body = nullptr;
+        MeshGL* cockpit = nullptr;
+        MeshGL* propeller = nullptr;
+        MeshGL* cables = nullptr;
+
+        glm::vec3 pos = glm::vec3(0.0f, 500.0f, 0.0f);
+        glm::quat orientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        float speed = 0.0f;
+        float propellerAngle = 0.0f;
+
+        // given offsets from pdf
+        const glm::vec3 propOffset = glm::vec3(0, 0, 13.719f);
+        const glm::vec3 cockpitOffset = glm::vec3(0, 2.733f, -1.489f);
+        const glm::vec3 cablesOffset = glm::vec3(0, 3.644f, -10.638f);
+    } plane;
+
+    struct OrbitCam {
+        float distance = 150.0f;
+        float yaw = 0.0f;
+        float pitch = 0.3f;
+    } orbitCam;
+
+    bool isRightButtonPressed = false;
 };
 
 struct ShaderGL

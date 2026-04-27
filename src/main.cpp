@@ -48,6 +48,27 @@ void MouseMoveCallback(GLFWwindow* wnd, double x, double y)
         state.cam.orientation = yawQuaternion * pitchQuaternion * state.cam.orientation;
         state.cam.orientation = glm::normalize(state.cam.orientation);
     }
+
+    float deltaX = (float)(x - state.cam.lastMousePos.x);
+    float deltaY = (float)(y - state.cam.lastMousePos.y);
+    state.cam.lastMousePos = glm::dvec2(x, y);
+
+    float sensitivity = 0.002f;
+
+    if (state.isRightButtonPressed){
+        state.orbitCam.yaw += deltaX * sensitivity;
+        state.orbitCam.pitch += deltaY * sensitivity;
+        state.orbitCam.pitch = glm::clamp(state.orbitCam.pitch, -1.5f, 1.5f);
+    }
+
+    if (glfwGetKey(wnd, GLFW_KEY_LEFT_ALT) == GLFW_PRESS){
+        glm::quat qYaw = glm::angleAxis(-deltaX * sensitivity, glm::vec3(0, 1, 0));
+        glm::vec3 planeRight = state.plane.orientation * glm::vec3(1, 0, 0);
+        glm::quat qPitch = glm::angleAxis(-deltaY * sensitivity, planeRight);
+
+        state.plane.orientation = qYaw * qPitch * state.plane.orientation;
+        state.plane.orientation = glm::normalize(state.plane.orientation);
+    }
 }
 
 void MouseButtonCallback(GLFWwindow* wnd, int button, int action, int)
@@ -64,6 +85,14 @@ void MouseButtonCallback(GLFWwindow* wnd, int button, int action, int)
         else if (action == GLFW_RELEASE) {
             state.cam.isLeftButtonPressed = false;
         }
+    }
+
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        state.isRightButtonPressed = action == GLFW_PRESS;
+    }
+
+    if (action == GLFW_PRESS) {
+        glfwGetCursorPos(wnd, &state.cam.lastMousePos.x, &state.cam.lastMousePos.y);
     }
 }
 
@@ -82,6 +111,25 @@ void KeyboardCallback(GLFWwindow* wnd, int key, int scancode, int action, int mo
 {
     GLState& state = *static_cast<GLState*>(glfwGetWindowUserPointer(wnd));
     uint32_t mode = state.mode;
+
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) { // for holding down (https://www.glfw.org/docs/3.3/group__input.html)
+        if (key == GLFW_KEY_W)
+            state.plane.speed += 0.5f;
+
+        if (key == GLFW_KEY_S)
+            state.plane.speed = std::max(0.0f, state.plane.speed - 0.5f);
+
+        // yaw for plane
+        if (key == GLFW_KEY_Q) {
+            glm::quat qYaw = glm::angleAxis(0.02f, glm::vec3(0, 1, 0));
+            state.plane.orientation = qYaw * state.plane.orientation;
+        }
+
+        if (key == GLFW_KEY_E) {
+            glm::quat qYaw = glm::angleAxis(-0.02f, glm::vec3(0, 1, 0));
+            state.plane.orientation = qYaw * state.plane.orientation;
+        }
+    }
 
     if (action == GLFW_PRESS || action == GLFW_REPEAT) { // for holding down (https://www.glfw.org/docs/3.3/group__input.html)
         if (key == GLFW_KEY_KP_ADD)
@@ -244,6 +292,22 @@ void generateTerrain(GLState &state, const GeoDataDTED &dted, ThreadPool &tp) {
     tp.Wait();
 }
 
+void renderMesh(MeshGL* mesh, const glm::mat4& model, const glm::mat4& view, const glm::mat4& proj, GLuint pipeline, GLuint vShaderId, GLuint fShaderId)
+{
+    glm::mat3 normalMatrix = glm::inverseTranspose(glm::mat3(model));
+
+    glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vShaderId);
+    glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fShaderId);
+
+    glProgramUniformMatrix4fv(vShaderId, 0, 1, GL_FALSE, glm::value_ptr(model));
+    glProgramUniformMatrix4fv(vShaderId, 1, 1, GL_FALSE, glm::value_ptr(view));
+    glProgramUniformMatrix4fv(vShaderId, 2, 1, GL_FALSE, glm::value_ptr(proj));
+    glProgramUniformMatrix3fv(vShaderId, 3, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+
+    glBindVertexArray(mesh->vaoId);
+    glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, nullptr);
+}
+
 int main(int argc, const char* argv[])
 {
     // if (argc < 2) {
@@ -255,21 +319,33 @@ int main(int argc, const char* argv[])
                             CallbackPointersGLFW());
     ShaderGL vShader = ShaderGL(ShaderGL::VERTEX, "shaders/generic.vert");
     ShaderGL fShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/debug.frag");
+
     // Tonemap shaders
     ShaderGL tmvShader = ShaderGL(ShaderGL::VERTEX, "shaders/tonemap.vert");
     ShaderGL tmfShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/tonemap.frag");
+
     // Skybox shaders
     ShaderGL skyboxVShader = ShaderGL(ShaderGL::VERTEX, "shaders/skybox.vert");
     ShaderGL skyboxFShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/skybox.frag");
+
     // Water shaders
     ShaderGL waterVShader = ShaderGL(ShaderGL::VERTEX, "shaders/water.vert");
     ShaderGL waterFShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/water.frag");
 
+    // Plane shaders
+    ShaderGL planeVShader = ShaderGL(ShaderGL::VERTEX, "shaders/plane.vert");
+    ShaderGL planeFShader = ShaderGL(ShaderGL::FRAGMENT, "shaders/plane.frag");
+
     TextureGL skyboxTex = TextureGL("kloppenheim_06_puresky_4k.hdr", TextureGL::LINEAR, TextureGL::REPEAT);
-    
+
     MeshGL mesh = MeshGL("meshes/tri.obj");
     TextureGL tex = TextureGL("textures/mixed_brick_wall_diff_1k.png",
                               TextureGL::LINEAR, TextureGL::REPEAT);
+
+    state.plane.body = new MeshGL("meshes/plane_body.obj");
+    state.plane.cables = new MeshGL("meshes/plane_cable.obj");
+    state.plane.cockpit = new MeshGL("meshes/plane_glass.obj");
+    state.plane.propeller = new MeshGL("meshes/plane_helix.obj");
 
     // Tonemap shader program (seperate from the main rendering pipeline)
     GLuint tonemapPipeline;
@@ -311,6 +387,7 @@ int main(int argc, const char* argv[])
     state.cam.pos = glm::vec3(center.x, bbMax.y + 1000.0f, center.z); // some offset to see the terrain from above
 
     float waterLevel = bbMin.y + 50.0f; // set water level a bit above the minimum height of the terrain
+    state.plane.pos = glm::vec3(center.x, bbMax.y + 200.0f, center.z); // start above the terrain
 
     GLuint terrainVAO, terrainVBO, terrainEBO;
 
@@ -447,6 +524,25 @@ int main(int argc, const char* argv[])
         // Poll inputs from the OS via GLFW
         glfwPollEvents();
 
+        float aspectRatio = float(state.curWndParams.fbSize[0]) / float(state.curWndParams.fbSize[1]);
+        glm::mat4x4 proj = glm::perspective(glm::radians(50.0f), aspectRatio,
+                                            5.0f, 50000.0f); // some changes for better view
+
+        glm::vec3 planeForward = state.plane.orientation * glm::vec3(0, 0, 1); // +z
+        state.plane.pos += planeForward * state.plane.speed;
+        state.plane.propellerAngle += state.plane.speed * 0.1f; // propeller speed depending on plane speed
+
+        glm::vec3 relativeCamPos;
+        // spherical coordinates based on the orbit camera angles and distance
+        relativeCamPos.x = state.orbitCam.distance * cos(state.orbitCam.pitch) * sin(state.orbitCam.yaw);
+        relativeCamPos.y = state.orbitCam.distance * sin(state.orbitCam.pitch);
+        relativeCamPos.z = state.orbitCam.distance * cos(state.orbitCam.pitch) * cos(state.orbitCam.yaw);
+
+        state.cam.pos = state.plane.pos - relativeCamPos;
+        glm::mat4 view = glm::lookAt(state.cam.pos, state.plane.pos, glm::vec3(0, 1, 0));
+
+        glm::mat4 planeWorldMatrix = glm::translate(glm::mat4(1.0f), state.plane.pos) * glm::mat4_cast(state.plane.orientation);
+
         if (state.needsTerrainUpdate) {
             generateTerrain(state, dted, tp);
 
@@ -492,25 +588,18 @@ int main(int argc, const char* argv[])
         if (glfwGetKey(state.window, GLFW_KEY_A) == GLFW_PRESS) state.cam.pos -= right * camSpeed;
         if (glfwGetKey(state.window, GLFW_KEY_D) == GLFW_PRESS) state.cam.pos += right * camSpeed;
 
-        // Roll
-        float rollSpeed = 0.02f;
-        if (glfwGetKey(state.window, GLFW_KEY_Q) == GLFW_PRESS) {
-            glm::quat roll = glm::angleAxis(rollSpeed, forward);
-            state.cam.orientation = roll * state.cam.orientation;
-        }
-        if (glfwGetKey(state.window, GLFW_KEY_E) == GLFW_PRESS) {
-            glm::quat roll = glm::angleAxis(-rollSpeed, forward);
-            state.cam.orientation = roll * state.cam.orientation;
-        }
+        // Roll for camera (from hw1)
+        // float rollSpeed = 0.02f;
+        // if (glfwGetKey(state.window, GLFW_KEY_Q) == GLFW_PRESS) {
+        //     glm::quat roll = glm::angleAxis(rollSpeed, forward);
+        //     state.cam.orientation = roll * state.cam.orientation;
+        // }
+        // if (glfwGetKey(state.window, GLFW_KEY_E) == GLFW_PRESS) {
+        //     glm::quat roll = glm::angleAxis(-rollSpeed, forward);
+        //     state.cam.orientation = roll * state.cam.orientation;
+        // }
 
         state.cam.orientation = glm::normalize(state.cam.orientation); // prevent precision loss
-
-        // Object-common matrices
-        float aspectRatio = float(state.curWndParams.fbSize[0]) / float(state.curWndParams.fbSize[1]);
-        glm::mat4x4 proj = glm::perspective(glm::radians(50.0f), aspectRatio,
-                                            5.0f, 50000.0f); // some changes for better view
-
-        glm::mat4x4 view = glm::lookAt(state.cam.pos, state.cam.pos + forward, up);
 
         glm::mat4x4 model = glm::identity<glm::mat4x4>();
 
@@ -589,7 +678,7 @@ int main(int argc, const char* argv[])
         // Send inverse of projection and view matrices to the shader to reconstruct the world position from the depth buffer
         glm::mat4 invProj = glm::inverse(proj);
         glm::mat4 invView = glm::inverse(glm::mat4(glm::mat3(view)));
-        
+
         glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(invProj));
         glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(invView));
 
@@ -632,8 +721,27 @@ int main(int argc, const char* argv[])
 
         glBindVertexArray(waterVAO);
         glDrawElements(GL_TRIANGLES, (GLsizei) waterIndices.size(), GL_UNSIGNED_INT, nullptr);
-        
+
         glDepthFunc(GL_LESS);
+
+        glBindProgramPipeline(state.renderPipeline);
+
+        // it's already in world space
+        renderMesh(state.plane.body, planeWorldMatrix, view, proj, state.renderPipeline, planeVShader.shaderId, planeFShader.shaderId);
+
+        glm::mat4 propModel = planeWorldMatrix
+            * glm::translate(glm::mat4(1.0f), state.plane.propOffset)
+            * glm::rotate(glm::mat4(1.0f), state.plane.propellerAngle, glm::vec3(0, 0, 1));
+        renderMesh(state.plane.propeller, propModel, view, proj, state.renderPipeline, planeVShader.shaderId, planeFShader.shaderId);
+
+        glm::mat4 cablesModel = planeWorldMatrix
+            * glm::translate(glm::mat4(1.0f), state.plane.cablesOffset);
+        renderMesh(state.plane.cables, cablesModel, view, proj, state.renderPipeline, planeVShader.shaderId, planeFShader.shaderId);
+
+        // TODO: I think i need to use different shader here but we'll see
+        glm::mat4 cockpitModel = planeWorldMatrix
+            * glm::translate(glm::mat4(1.0f), state.plane.cockpitOffset);
+        renderMesh(state.plane.cockpit, cockpitModel, view, proj, state.renderPipeline, planeVShader.shaderId, planeFShader.shaderId);
 
         // Mipmap generation for the color buffer
         glBindTexture(GL_TEXTURE_2D, colorBuffer);
