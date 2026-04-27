@@ -27,7 +27,7 @@ void main() {
 
     vec3 reflectionColor = textureLod(tSkybox, SampleSphericalMap(R), 0.0).rgb;
 
-    vec3 waterBaseColor = vec3(0.01, 0.08, 0.15);
+    vec3 waterBaseColor = vec3(0.01, 0.08, 0.7);
     vec3 finalColor = mix(waterBaseColor, reflectionColor, 0.5);
 
     float luminance = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
