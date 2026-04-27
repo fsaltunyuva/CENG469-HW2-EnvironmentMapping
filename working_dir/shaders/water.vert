@@ -11,19 +11,18 @@ layout(location = 1) uniform mat4 uView;
 layout(location = 2) uniform mat4 uProj;
 layout(location = 4) uniform float uTime;
 layout(location = 5) uniform float uWaterLevel;
+layout(location = 6) uniform float uAmplitude;
+layout(location = 7) uniform float uFrequency;
+layout(location = 8) uniform float uPhase;
 
 void main() {
-    float A = 1.5; // amplitude
-    float F = 0.003; // freq.
-    float W = 0.6; // phase/frequency over time
-
     // y = A * cos(F*x + W*t)
-    float height = A * cos(F * vPos.x + W * uTime);
+    float height = uAmplitude * cos(uFrequency * vPos.x + uPhase * uTime);
     vec3 animatedPos = vec3(vPos.x, uWaterLevel + height, vPos.z);
 
     // Derivative
     // dy/dx = -A * F * sin(F*x + W*t)
-    float dy_dx = -A * F * sin(F * vPos.x + W * uTime);
+    float dy_dx = -uAmplitude * uFrequency * sin(uFrequency * vPos.x + uPhase * uTime);
 
     // Cross products of the tangent vectors gives the normal
     fNormal = normalize(vec3(-dy_dx, 1.0, 0.0));

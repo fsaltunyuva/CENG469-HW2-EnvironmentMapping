@@ -74,6 +74,17 @@ endif()
 #  Main Executable  #
 # ================= #
 
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui)
+set(SRC_IMGUI
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
 # If you want to add additional files, add these to this list
 set(SRC_ALL
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
@@ -81,6 +92,7 @@ set(SRC_ALL
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utility.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/thread_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/thread_pool.h
+    ${SRC_IMGUI}
     # For example,
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/myNewFile.cpp
     )
@@ -105,6 +117,8 @@ target_link_libraries(TerrainRenderer
                         glm
                         compile_options
                         OpenGL::GL)
+
+target_include_directories(TerrainRenderer PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
 # Executable will be compiled to the 'working_dir'
 set_target_properties(TerrainRenderer PROPERTIES

@@ -8,6 +8,10 @@
 #include <GLFW/glfw3.h>
 #include <glm/ext.hpp> // for matrix calculation
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 void WindowPositionCallback(GLFWwindow* wnd, int x, int y)
 {
     GLState& state = *static_cast<GLState*>(glfwGetWindowUserPointer(wnd));
@@ -544,6 +548,19 @@ int main(int argc, const char* argv[])
     glProgramUniform1i(planeFShader.shaderId, glGetUniformLocation(planeFShader.shaderId, "tAlbedo"), 0);
     glProgramUniform1i(planeFShader.shaderId, glGetUniformLocation(planeFShader.shaderId, "tSkybox"), 1);
 
+    // Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(state.window, true);
+    ImGui_ImplOpenGL3_Init("#version 430");
+
+    float waterAmplitude = 1.5f;
+    float waterFrequency = 0.003f;
+    float waterPhase = 0.6f;
+
     // =============== //
     //   RENDER LOOP   //
     // =============== //
@@ -551,6 +568,11 @@ int main(int argc, const char* argv[])
     {
         // Poll inputs from the OS via GLFW
         glfwPollEvents();
+
+        // Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
         float aspectRatio = float(state.curWndParams.fbSize[0]) / float(state.curWndParams.fbSize[1]);
         glm::mat4x4 proj = glm::perspective(glm::radians(50.0f), aspectRatio,
@@ -762,6 +784,10 @@ int main(int argc, const char* argv[])
         GLint wWaterLevelLoc = glGetUniformLocation(waterVShader.shaderId, "uWaterLevel");
         glProgramUniform1f(waterVShader.shaderId, wWaterLevelLoc, waterLevel);
 
+        glProgramUniform1f(waterVShader.shaderId, glGetUniformLocation(waterVShader.shaderId, "uAmplitude"), waterAmplitude);
+        glProgramUniform1f(waterVShader.shaderId, glGetUniformLocation(waterVShader.shaderId, "uFrequency"), waterFrequency);
+        glProgramUniform1f(waterVShader.shaderId, glGetUniformLocation(waterVShader.shaderId, "uPhase"), waterPhase);
+
         // uniforms
         GLint wViewPosLoc = glGetUniformLocation(waterFShader.shaderId, "uViewPos");
         GLint wSkyTexLoc  = glGetUniformLocation(waterFShader.shaderId, "tSkybox");
@@ -830,6 +856,23 @@ int main(int argc, const char* argv[])
         glBindVertexArray(tmquadVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+        // Render ImGui
+        ImGui::Begin("Water Parameters");
+        ImGui::SliderFloat("Amplitude", &waterAmplitude, 0.0f, 10.0f);
+        ImGui::SliderFloat("Frequency", &waterFrequency, 0.0f, 0.02f, "%.4f");
+        ImGui::SliderFloat("Phase", &waterPhase, 0.0f, 5.0f);
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(state.window);
     }
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    return 0;
 }
