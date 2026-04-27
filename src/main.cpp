@@ -98,6 +98,14 @@ void MouseButtonCallback(GLFWwindow* wnd, int button, int action, int)
 
 void MouseScrollCallback(GLFWwindow* wnd, double dx, double dy)
 {
+    GLState& state = *static_cast<GLState*>(glfwGetWindowUserPointer(wnd));
+
+    float zoomSpeed = 10.0f;
+
+    state.orbitCam.distance -= (float) dy * zoomSpeed;
+
+    // clamp
+    state.orbitCam.distance = glm::clamp(state.orbitCam.distance, 20.0f, 2000.0f);
 }
 
 void FramebufferChangeCallback(GLFWwindow* wnd, int w, int h)
