@@ -48,6 +48,7 @@ struct WindowParams
 struct Vertex {
     glm::vec3 position; // x, y, z
     glm::vec3 normal; // nx, ny, nz
+    glm::vec2 uv; // u, v
 };
 
 struct GLState

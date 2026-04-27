@@ -12,7 +12,7 @@
 // These locations must match between vertex/fragment shaders
 #define IN_UV		layout(location = 0)
 #define IN_NORMAL	layout(location = 1)
-#define IN_COLOR	layout(location = 2)
+#define IN_WORLD_POS layout(location = 2)
 #define IN_HEIGHT	layout(location = 3)
 
 // This output must match to the COLOR_ATTACHMENTi (where 'i' is this location)
@@ -28,6 +28,7 @@
 in IN_UV	 vec2 fUV;
 in IN_NORMAL vec3 fNormal;
 in IN_HEIGHT float fHeight;
+in IN_WORLD_POS vec3 fWorldPos;
 
 // Output
 // This parameter goes to the framebuffer
@@ -35,9 +36,15 @@ out OUT_FBO vec4 fboColor;
 
 // Uniforms
 U_MODE uniform uint uMode;
+uniform vec3 uViewPos;
 
-// Textures
-uniform T_ALBEDO sampler2D tAlbedo;
+// Texture samplers
+layout(binding = 0) uniform sampler2D tGrass;
+layout(binding = 1) uniform sampler2D tRock;
+layout(binding = 2) uniform sampler2D tSnow;
+layout(binding = 3) uniform sampler2D tGrassRough;
+layout(binding = 4) uniform sampler2D tRockRough;
+layout(binding = 5) uniform sampler2D tSnowRough;
 
 vec3 getAlbedo(float h) {
 	if (h < 100.0)
@@ -63,17 +70,37 @@ void main(void)
 		// Lambertian
 		case 0:
 		{
-			vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5));
-			float diff = max(dot(normal, lightDir), 0.2); // 0.2 ambient
+			vec3 N = normalize(fNormal);
+			vec2 uv = fUV * 150.0; //tiling
 
-			vec3 color = albedo * diff;
+			float rockW = smoothstep(500.0, 1200.0, fHeight);
+			float snowW = smoothstep(1800.0, 2500.0, fHeight);
 
-			float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722)); // sRGB
-			float logLuminance = log(max(luminance, 0.0001));
+			// more slope more rock
+			float slopeW = 1.0 - smoothstep(0.4, 0.7, N.y);
 
-//			color *= 20; // to test hdr
+			vec3 colorMix = mix(texture(tGrass, uv).rgb, texture(tRock, uv).rgb, rockW);
+			colorMix = mix(colorMix, texture(tRock, uv).rgb, slopeW);
+			colorMix = mix(colorMix, texture(tSnow, uv).rgb, snowW);
 
-			fboColor = vec4(color, logLuminance); // passing logLuminance to alpha value
+			float roughMix = mix(texture(tGrassRough, uv).r, texture(tRockRough, uv).r, rockW);
+			roughMix = mix(roughMix, texture(tRockRough, uv).r, slopeW);
+			roughMix = mix(roughMix, texture(tSnowRough, uv).r, snowW);
+
+			vec3 L = normalize(vec3(0.5, 1.0, 0.5));
+			vec3 V = normalize(uViewPos - fWorldPos);
+			vec3 H = normalize(L + V);
+
+			float diff = max(dot(N, L), 0.2); // ambient 0.2
+
+			float spec = pow(max(dot(N, H), 0.0), (1.0 - roughMix) * 128.0); // dynamic specuar exponent based on roughness
+
+			vec3 finalColor = (colorMix * diff) + (spec * 0.3); // specular contribution is scaled down a bit
+
+			float luminance = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
+			float logL = log(max(luminance, 0.0001));
+
+			fboColor = vec4(finalColor, logL);
 			break;
 		}
 		// Albedo

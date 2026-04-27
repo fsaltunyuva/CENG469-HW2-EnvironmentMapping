@@ -230,6 +230,7 @@ void calculateBSplineSurfacePoint(float s, float t, const glm::mat4& G, float st
     glm::vec3 tangentT(0.0f, dy_dt, patchScale);
 
     outV.normal = glm::normalize(glm::cross(tangentT, tangentS));
+    outV.uv = glm::vec2((startX + s * step) / 100.0f, (startZ + t * step) / 100.0f);
 }
 
 void generateTerrain(GLState &state, const GeoDataDTED &dted, ThreadPool &tp) {
@@ -350,6 +351,14 @@ int main(int argc, const char* argv[])
     TextureGL planeBaseTex = TextureGL("textures/plane_base_albedo.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
     TextureGL planeHelixTex = TextureGL("textures/plane_helix_albedo.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
 
+    TextureGL grassTex = TextureGL("textures/grass_diff_2k.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
+    TextureGL rockTex = TextureGL("textures/rock_diff_2k.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
+    TextureGL snowTex = TextureGL("textures/snow_diff_2k.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
+
+    TextureGL grassRoughTex = TextureGL("textures/grass_rough_2k.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
+    TextureGL rockRoughTex = TextureGL("textures/rock_rough_2k.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
+    TextureGL snowRoughTex = TextureGL("textures/snow_rough_2k.jpg", TextureGL::LINEAR, TextureGL::REPEAT);
+
     MeshGL mesh = MeshGL("meshes/tri.obj");
     TextureGL tex = TextureGL("textures/mixed_brick_wall_diff_1k.png",
                               TextureGL::LINEAR, TextureGL::REPEAT);
@@ -398,7 +407,7 @@ int main(int argc, const char* argv[])
 
     state.cam.pos = glm::vec3(center.x, bbMax.y + 1000.0f, center.z); // some offset to see the terrain from above
 
-    float waterLevel = bbMin.y + 50.0f; // set water level a bit above the minimum height of the terrain
+    float waterLevel = bbMin.y + 20.0; // set water level a bit above the minimum height of the terrain
     state.plane.pos = glm::vec3(center.x, bbMax.y + 200.0f, center.z); // start above the terrain
 
     GLuint terrainVAO, terrainVBO, terrainEBO;
@@ -427,6 +436,10 @@ int main(int argc, const char* argv[])
     // Normal (layout(location = 1))
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
     glEnableVertexAttribArray(1);
+
+    // UV (layout(location = 2))
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
+    glEnableVertexAttribArray(2);
 
     // HDR
     GLuint hdrFBO, colorBuffer, rboDepth;
@@ -643,6 +656,19 @@ int main(int argc, const char* argv[])
         static constexpr GLuint T_ALBEDO = 0;
         static constexpr GLuint U_MODE = 0;
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, grassTex.textureId);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, rockTex.textureId);
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, snowTex.textureId);
+
+        glProgramUniform1i(fShader.shaderId, glGetUniformLocation(fShader.shaderId, "tGrass"), 0);
+        glProgramUniform1i(fShader.shaderId, glGetUniformLocation(fShader.shaderId, "tRock"), 1);
+        glProgramUniform1i(fShader.shaderId, glGetUniformLocation(fShader.shaderId, "tSnow"), 2);
+
         // glActiveShaderProgram makes "glUniform" family of commands
         // to effect the selected shader
         glUseProgramStages(state.renderPipeline, GL_VERTEX_SHADER_BIT, vShader.shaderId);
@@ -672,11 +698,23 @@ int main(int argc, const char* argv[])
             static_assert(GL_TEXTURE0 + 1 == GL_TEXTURE1, "OGL API is wrong!");
             static_assert(GL_TEXTURE0 + 2 == GL_TEXTURE2, "OGL API is wrong!");
             static_assert(GL_TEXTURE0 + 16 == GL_TEXTURE16, "OGL API is wrong!");
-            glActiveTexture(GL_TEXTURE0 + T_ALBEDO);
-            glBindTexture(GL_TEXTURE_2D, tex.textureId);
+            // glActiveTexture(GL_TEXTURE0 + T_ALBEDO);
+            // glBindTexture(GL_TEXTURE_2D, tex.textureId);
 
             glUniform1ui(U_MODE, state.mode);
         }
+
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, grassTex.textureId);
+        glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, rockTex.textureId);
+        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, snowTex.textureId);
+
+        glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, grassRoughTex.textureId);
+        glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, rockRoughTex.textureId);
+        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, snowRoughTex.textureId);
+
+        //needed for specular
+        glProgramUniform3fv(fShader.shaderId, glGetUniformLocation(fShader.shaderId, "uViewPos"), 1, glm::value_ptr(state.cam.pos));
+
         // Bind VAO
         glBindVertexArray(terrainVAO);
         // Draw call!
@@ -684,7 +722,7 @@ int main(int argc, const char* argv[])
         glDrawElements(GL_TRIANGLES, (GLsizei)state.indices.size(), GL_UNSIGNED_INT, nullptr);
 
         // Skybox
-        glDepthFunc(GL_LEQUAL); //
+        glDepthFunc(GL_LEQUAL);
 
         // switch to skybox vertex shader
         glUseProgramStages(state.renderPipeline, GL_VERTEX_SHADER_BIT, skyboxVShader.shaderId);
