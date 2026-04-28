@@ -83,13 +83,13 @@ void main(void)
 		case 0:
 		{
 			vec3 N = normalize(fNormal);
-			vec2 uv = fUV * 150.0; //tiling
+			vec2 uv = fUV * 1.0; //tiling
 
-			float rockW = smoothstep(500.0, 1200.0, fHeight);
+			float rockW = smoothstep(300.0, 1200.0, fHeight);
 			float snowW = smoothstep(1800.0, 2500.0, fHeight);
 
 			// more slope more rock
-			float slopeW = 1.0 - smoothstep(0.4, 0.7, N.y);
+			float slopeW = 1.0 - smoothstep(0.65, 0.95, N.y);
 
 			vec3 colorMix = mix(texture(tGrass, uv).rgb, texture(tRock, uv).rgb, rockW);
 			colorMix = mix(colorMix, texture(tRock, uv).rgb, slopeW);

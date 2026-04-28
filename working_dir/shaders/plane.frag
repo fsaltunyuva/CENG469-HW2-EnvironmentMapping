@@ -44,7 +44,7 @@ void main(void)
         float diff = max(dot(normal, lightDir), 0.2);
 
         vec3 texCol = texture(tAlbedo, fUV).rgb;
-        vec3 color = mix(texCol * diff, reflectColor, 0.15); // 0.15 reflection and 0.85 base color
+        vec3 color = mix(texCol * diff, reflectColor, 0.05); // 0.05 reflection and 0.95 base color
 
         float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722)); // sRGB
         float logLuminance = log(max(luminance, 0.0001));
