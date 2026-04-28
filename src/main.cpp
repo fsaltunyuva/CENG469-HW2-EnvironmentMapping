@@ -79,17 +79,18 @@ void MouseButtonCallback(GLFWwindow* wnd, int button, int action, int)
 {
     GLState& state = *static_cast<GLState*>(glfwGetWindowUserPointer(wnd));
 
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        if (action == GLFW_PRESS) {
-            state.cam.isLeftButtonPressed = true;
-            double x, y;
-            glfwGetCursorPos(wnd, &x, &y);
-            state.cam.lastMousePos = glm::dvec2(x, y);
-        }
-        else if (action == GLFW_RELEASE) {
-            state.cam.isLeftButtonPressed = false;
-        }
-    }
+    // from hw1
+    // if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    //     if (action == GLFW_PRESS) {
+    //         state.cam.isLeftButtonPressed = true;
+    //         double x, y;
+    //         glfwGetCursorPos(wnd, &x, &y);
+    //         state.cam.lastMousePos = glm::dvec2(x, y);
+    //     }
+    //     else if (action == GLFW_RELEASE) {
+    //         state.cam.isLeftButtonPressed = false;
+    //     }
+    // }
 
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         state.isRightButtonPressed = action == GLFW_PRESS;
@@ -372,11 +373,10 @@ int main(int argc, const char* argv[])
     state.plane.cockpit = new MeshGL("meshes/plane_glass.obj");
     state.plane.propeller = new MeshGL("meshes/plane_helix.obj");
 
-    // Tonemap shader program (seperate from the main rendering pipeline)
+    // Tonemap shader program
     GLuint tonemapPipeline;
     glGenProgramPipelines(1, &tonemapPipeline);
 
-    // Binding the tonemap vertex and tonemap fragment shaders to the pipeline
     glUseProgramStages(tonemapPipeline, GL_VERTEX_SHADER_BIT, tmvShader.shaderId);
     glUseProgramStages(tonemapPipeline, GL_FRAGMENT_SHADER_BIT, tmfShader.shaderId);
 
@@ -384,7 +384,6 @@ int main(int argc, const char* argv[])
     GLuint waterPipeline;
     glGenProgramPipelines(1, &waterPipeline);
 
-    // Binding the water vertex and water fragment shaders to the pipeline
     glUseProgramStages(waterPipeline, GL_VERTEX_SHADER_BIT, waterVShader.shaderId);
     glUseProgramStages(waterPipeline, GL_FRAGMENT_SHADER_BIT, waterFShader.shaderId);
 
@@ -548,7 +547,7 @@ int main(int argc, const char* argv[])
     glProgramUniform1i(planeFShader.shaderId, glGetUniformLocation(planeFShader.shaderId, "tAlbedo"), 0);
     glProgramUniform1i(planeFShader.shaderId, glGetUniformLocation(planeFShader.shaderId, "tSkybox"), 1);
 
-    // Dear ImGui context
+    // Dear ImGui (used the tutorials from https://github.com/ocornut/imgui/wiki/Getting-Started#example-if-you-are-using-sdl2sdl3--openglwebgl)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -788,9 +787,9 @@ int main(int argc, const char* argv[])
 
         // sending matrices and time for animation to the water vertex shader
         GLint wModelLoc = glGetUniformLocation(waterVShader.shaderId, "uModel");
-        GLint wViewLoc  = glGetUniformLocation(waterVShader.shaderId, "uView");
-        GLint wProjLoc  = glGetUniformLocation(waterVShader.shaderId, "uProj");
-        GLint wTimeLoc  = glGetUniformLocation(waterVShader.shaderId, "uTime");
+        GLint wViewLoc = glGetUniformLocation(waterVShader.shaderId, "uView");
+        GLint wProjLoc = glGetUniformLocation(waterVShader.shaderId, "uProj");
+        GLint wTimeLoc = glGetUniformLocation(waterVShader.shaderId, "uTime");
 
         glProgramUniformMatrix4fv(waterVShader.shaderId, wModelLoc, 1, GL_FALSE, glm::value_ptr(model));
         glProgramUniformMatrix4fv(waterVShader.shaderId, wViewLoc, 1, GL_FALSE, glm::value_ptr(view));
@@ -806,7 +805,7 @@ int main(int argc, const char* argv[])
 
         // uniforms
         GLint wViewPosLoc = glGetUniformLocation(waterFShader.shaderId, "uViewPos");
-        GLint wSkyTexLoc  = glGetUniformLocation(waterFShader.shaderId, "tSkybox");
+        GLint wSkyTexLoc = glGetUniformLocation(waterFShader.shaderId, "tSkybox");
 
         glProgramUniform3fv(waterFShader.shaderId, wViewPosLoc, 1, glm::value_ptr(state.cam.pos));
         glProgramUniform1i(waterFShader.shaderId, wSkyTexLoc, 0);

@@ -20,8 +20,8 @@
 
 #define OUT_UV			layout(location = 0)
 #define OUT_NORMAL		layout(location = 1)
-#define OUT_WORLD_POS	layout(location = 2) // world position to send to fragment shader for lighting
-#define OUT_HEIGHT		layout(location = 3) // height info to send to fragment shader
+#define OUT_WORLD_POS	layout(location = 2)
+#define OUT_HEIGHT		layout(location = 3)
 
 #define U_TRANSFORM_MODEL	layout(location = 0)
 #define U_TRANSFORM_VIEW	layout(location = 1)
@@ -42,7 +42,7 @@ out gl_PerVertex {vec4 gl_Position;};
 // fragment positions
 out OUT_UV		vec2 fUV;
 out OUT_NORMAL	vec3 fNormal;
-out OUT_HEIGHT	float fHeight; // height info to send to fragment shader
+out OUT_HEIGHT	float fHeight;
 out OUT_WORLD_POS vec3 fWorldPos;
 
 // Uniforms
@@ -51,7 +51,7 @@ U_TRANSFORM_VIEW	uniform mat4 uView;
 U_TRANSFORM_PROJ	uniform mat4 uProjection;
 U_TRANSFORM_NORMAL  uniform mat3 uNormalMatrix;
 
-layout(location = 4) uniform float uHeightScale; // height scale for height scaling
+layout(location = 4) uniform float uHeightScale;
 
 void main(void)
 {

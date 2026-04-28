@@ -20,11 +20,9 @@ void main() {
     float height = uAmplitude * cos(uFrequency * vPos.x + uPhase * uTime);
     vec3 animatedPos = vec3(vPos.x, uWaterLevel + height, vPos.z);
 
-    // Derivative
     // dy/dx = -A * F * sin(F*x + W*t)
     float dy_dx = -uAmplitude * uFrequency * sin(uFrequency * vPos.x + uPhase * uTime);
 
-    // Cross products of the tangent vectors gives the normal
     fNormal = normalize(vec3(-dy_dx, 1.0, 0.0));
 
     fWorldPos = animatedPos;
