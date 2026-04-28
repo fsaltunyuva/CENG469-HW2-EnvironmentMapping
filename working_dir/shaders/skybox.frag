@@ -6,16 +6,13 @@ layout(location = 0) out vec4 fboColor;
 
 layout(binding = 0) uniform sampler2D tSkybox;
 
-const float PI = 3.14159265359;
+const float PI = 3.1415926;
 
-vec2 SampleSphericalMap(vec3 v)
-{
+vec2 SampleSphericalMap(vec3 v) {
     float phi = atan(v.z, v.x);
-    float theta = acos(v.y);
-
-    float u = (phi + PI) / (2.0 * PI);
-    float v_coord = 1.0 - (theta / PI);
-
+    float theta = acos(clamp(v.y, -1.0, 1.0));
+    float u = (phi + PI) / (2.0 * PI); // converting from [-PI, PI] to [0, 1]
+    float v_coord = 1.0 - (theta / PI); // converting from [0, PI] to [1, 0]
     return vec2(u, v_coord);
 }
 

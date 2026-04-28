@@ -517,7 +517,7 @@ int main(int argc, const char* argv[])
 
     for (int i = 0; i < waterRes; ++i) {
         for (int j = 0; j < waterRes; ++j) {
-            // same logic as terrain indices but with waterRes instead of state.tesselationRate and without the vBase offset since water vertices are in a single array
+            // same logic as terrain indices but with waterRes instead of state.tesselationRate and without the vBase offset bc water vertices are in a single array
             int row1 = i * (waterRes + 1);
             int row2 = (i + 1) * (waterRes + 1);
             waterIndices.push_back(row1 + j);
